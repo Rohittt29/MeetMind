@@ -11,7 +11,8 @@
 
 **MeetMind** is an enterprise-grade AI Productivity Agent built to eliminate the loss of critical information that happens post-meeting. Instead of relying on bloated, generalized summary prompt walls, MeetMind is powered by an advanced **Multi-Agent Chain** using Google's fastest `gemini-2.5-flash` endpoint. It processes your internal meeting transcripts and outputs highly structured, immediately actionable data.
 
-![MeetMind Screenshot Placeholder](https://via.placeholder.com/1000x500.png?text=MeetMind+App+Screenshot)
+LIVE LINK OF MEETMIND:
+https://meet-mind.streamlit.app/
 
 ## ✨ Why MeetMind?
 Unproductive meetings cost businesses billions every year. The absolute biggest leak is **follow-through**. Valuable insights dissolve into thin air because action items aren't explicitly tracked and dedicated follow-up emails are notoriously postponed. **MeetMind solves this instantly.**
