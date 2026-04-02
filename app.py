@@ -415,23 +415,24 @@ def render_home():
             emails_html = ""
             if emails:
                 for idx, email in enumerate(emails):
-                    emails_html += f"""
-                    <details style="background-color: #0B100E; border: 1px solid rgba(125, 140, 124, 0.15); border-radius: 6px; margin-bottom: 0.8rem; padding: 0.8rem;">
-                        <summary style="cursor: pointer; color: #E3E3DE; font-weight: 500; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="Mm9 18l6-6-6-6"/></svg>
-                            To: {email.get('owner', 'Team')} - {email.get('subject', 'Follow-up')}
-                        </summary>
-                        <textarea style="width: 100%; height: 180px; background-color: #1A1F1D; color: #E3E3DE; border: 1px solid rgba(125,140,124,0.2); border-radius: 6px; margin-top: 1rem; padding: 0.8rem; font-family: 'Inter', sans-serif; resize: vertical;">{email.get('body', '')}</textarea>
-                    </details>
-                    """
+                    owner = email.get('owner', 'Team')
+                    subject = email.get('subject', 'Follow-up')
+                    body = email.get('body', '')
+                    emails_html += f"""<details style="background-color: #0B100E; border: 1px solid rgba(125, 140, 124, 0.15); border-radius: 6px; margin-bottom: 0.8rem; padding: 0.8rem;">
+<summary style="cursor: pointer; color: #E3E3DE; font-weight: 500; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
+To: {owner} - {subject}
+</summary>
+<textarea style="width: 100%; height: 180px; background-color: #1A1F1D; color: #E3E3DE; border: 1px solid rgba(125,140,124,0.2); border-radius: 6px; margin-top: 1rem; padding: 0.8rem; font-family: 'Inter', sans-serif; resize: vertical;">{body}</textarea>
+</details>"""
             else:
                 emails_html = "<p style='color: #E3E3DE !important;'>No emails drafted.</p>"
             st.markdown(f"""
-            <div class='meetmind-card'>
-                <div class='card-title'>Card 3: Auto-Draft Follow-up Emails</div>
-                {emails_html}
-            </div>
-            """, unsafe_allow_html=True)
+<div class='meetmind-card'>
+    <div class='card-title'>Card 3: Auto-Draft Follow-up Emails</div>
+    {emails_html}
+</div>
+""", unsafe_allow_html=True)
 
 def render_how_it_works():
     st.markdown("<h1 style='color: #E3E3DE; text-align: center; margin-top: 2rem;'>How MeetMind Works</h1>", unsafe_allow_html=True)
