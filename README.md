@@ -2,6 +2,8 @@
 
 A Streamlit workspace for turning a meeting transcript into action items, open questions, editable follow-up emails, and a downloadable Markdown recap.
 
+![MeetMind workspace with a transcript editor and sample recap](docs/workspace.jpg)
+
 [Open the hosted app](https://meet-mind.streamlit.app/)
 
 ## Run locally
@@ -13,7 +15,7 @@ python -m pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
-Choose **Preview a sample recap** to explore a prepared client call without credentials. For live analysis, set `GEMINI_API_KEY` in the environment, a local `.env` file, or top-level Streamlit Cloud secrets. Set `GEMINI_MODEL` to override the default `gemini-flash-latest`.
+Choose **Explore sample recap** to explore a prepared client call without credentials. For live analysis, set `GEMINI_API_KEY` in the environment, a local `.env` file, or top-level Streamlit Cloud secrets. Set `GEMINI_MODEL` to override the default `gemini-flash-latest`.
 
 ## Workflow
 
