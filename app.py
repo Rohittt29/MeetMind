@@ -1,4 +1,6 @@
 import os
+from html import escape
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -21,32 +23,32 @@ def load_sample():
         state.meeting_type = state.sample
 
 
-def save_result(result, preview=False):
+def save_result(result):
     state.report = result
     state.report_input = (state.transcript.strip(), state.meeting_type)
     state.report_id = uuid4().hex
-    state.preview = preview
 
 
+@st.dialog("Example recap", width="large")
 def preview_sample():
-    state.sample = "Client Call"
-    load_sample()
-    save_result(client_preview(), preview=True)
+    st.caption("Prepared example · Client call")
+    if "example_report" not in state:
+        state.example_report = client_preview()
+    render_report(state.example_report, "example")
 
 
-def render_report():
-    notes, drafts, quality = state.report
-    st.divider()
-    st.header("Meeting recap")
-    if state.preview:
-        st.caption("Example recap · Prepared from the client call sample")
+def render_report(report, report_id):
+    notes, drafts, quality = report
     st.text(notes.summary)
     actions, followups, review = st.tabs(["Action items", "Follow-up emails", "Meeting quality"])
     with actions:
         for item in notes.action_items:
             with st.container(border=True):
-                st.text(item.task)
-                st.text(f"Owner: {item.owner}   ·   Due: {item.deadline}   ·   Priority: {item.priority}")
+                st.html(
+                    f'<p class="task-name">{escape(item.task)}</p><div class="task-meta">'
+                    f'<span>Owner · {escape(item.owner)}</span><span>Due · {escape(item.deadline)}</span>'
+                    f'<span>Priority · {escape(item.priority)}</span></div>'
+                )
         if not notes.action_items:
             st.caption("No commitments identified.")
         st.subheader("Open questions")
@@ -60,7 +62,7 @@ def render_report():
         for idx, email in enumerate(drafts.emails):
             with st.container(border=True):
                 st.text(f"To {email.owner}")
-                prefix = f"{state.report_id}_{idx}"
+                prefix = f"{report_id}_{idx}"
                 email.subject = st.text_input("Subject", email.subject, key=prefix + "_subject")
                 email.body = st.text_area("Message", email.body, height=160, key=prefix + "_body")
     with review:
@@ -70,22 +72,34 @@ def render_report():
             value = getattr(quality, label)
             st.progress(value / 10, text=f"{label.title()}  ·  {value:g}/10")
     st.download_button("Download recap (.md)", markdown_report(notes, drafts, quality),
-                       file_name="meetmind-recap.md", mime="text/markdown")
+                       file_name="meetmind-recap.md", mime="text/markdown", key=f"download_{report_id}", on_click="ignore")
 
 
 def workspace():
-    st.title("Meeting workspace")
-    st.write("Turn a transcript into a recap with owners, deadlines, and follow-up emails.")
-    with st.container(border=True):
-        st.subheader("Meeting transcript")
+    heights = [18, 28, 47, 32, 55, 76, 91, 64, 47, 31, 45, 70, 84, 60, 42, 25, 36, 52, 67, 48, 29, 19]
+    bars = "".join(f'<i style="height:{h}%"></i>' for h in heights)
+    st.html(
+        f'<section class="studio-cover"><div class="sound" aria-hidden="true">{bars}</div>'
+        '<h1>Your meeting, recapped.</h1>'
+        '<p>Turn the conversation into clear action items, deadlines, and follow-up drafts.</p></section>'
+    )
+    composer, example = st.columns([1.8, 1], gap="medium")
+    with composer.container(key="composer"):
+        st.header("Create a recap")
+        transcript = st.text_area("Meeting transcript", key="transcript", height=148,
+                                  placeholder="Paste your meeting notes or transcript here…")
         left, right = st.columns(2)
         left.selectbox("Meeting type", [*SAMPLES, "1-on-1"], key="meeting_type")
         right.selectbox("Load sample transcript", ["Choose a sample", *SAMPLES], key="sample", on_change=load_sample)
-        transcript = st.text_area("Transcript", key="transcript", height=200,
-                                  placeholder="Paste the conversation here, including speaker names if available.")
-        st.caption("Creating a recap sends this transcript to Google Gemini.")
-        run = st.button("Create recap", type="primary", disabled=not transcript.strip())
-        st.button("Preview a sample recap", on_click=preview_sample, help="Open a prepared client call example without an API key.")
+        run = st.button("Create recap", type="primary", icon=":material/auto_awesome:", disabled=not transcript.strip())
+        st.caption("Creating a recap sends the transcript to Google Gemini.")
+    with example.container(key="example"):
+        st.header("Inside a sample recap")
+        st.html('<blockquote>“John will handle the basic PDF export by Friday.”</blockquote>'
+                '<p class="sample-source">From the client call sample</p>')
+        st.write("See the action item and follow-up email drawn from this conversation.")
+        if st.button("Explore sample recap", icon=":material/arrow_outward:"):
+            preview_sample()
     if run:
         key = os.getenv("GEMINI_API_KEY")
         if not key:
@@ -108,12 +122,20 @@ def workspace():
                     status.update(label="Recap ready", state="complete", expanded=False)
     if "report" in state:
         if state.report_input == (transcript.strip(), state.meeting_type):
-            render_report()
+            st.header("Meeting recap")
+            render_report(state.report, state.report_id)
         else:
             st.info("The meeting input has changed. Create a recap for this version.")
 
 
-st.markdown("**◈　MeetMind**")
+st.html(Path(__file__).with_name("studio.css"))
+with st.container(key="masthead"):
+    brand, shortcut = st.columns([3, 2])
+    brand.html('<div class="studio-brand"><span aria-hidden="true" class="brand-mark">'
+               '<i style="height:9px"></i><i style="height:19px"></i><i style="height:13px"></i>'
+               '</span>MeetMind</div>')
+    if shortcut.button("View example", key="mobile_example"):
+        preview_sample()
 page = st.query_params.get("page", "Home")
 if page in ("How It Works", "About"):
     st.title(page)
