@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from google.genai.errors import APIError
 from pydantic import ValidationError
 
-from analysis import analyze, markdown_report
+from analysis import correct_action, analyze, markdown_report
 from samples import SAMPLES, client_preview
 
 load_dotenv()
@@ -34,17 +34,43 @@ def preview_sample():
     st.caption("Prepared example · Client call")
     if "example_report" not in state:
         state.example_report = client_preview()
-    render_report(state.example_report, "example")
+    render_report(state.example_report, "example", SAMPLES["Client Call"])
 
 
-def render_report(report, report_id):
+def render_report(report, report_id, transcript):
     notes, drafts, quality = report
     st.text(notes.summary)
     actions, followups, review = st.tabs(["Action items", "Follow-up emails", "Meeting quality"])
     with actions:
-        for item in notes.action_items:
+        for index, item in enumerate(notes.action_items):
             with st.container(border=True):
-                st.html(
+                header = st.empty()
+                quote = getattr(item, "source_quote", "")
+                if quote and quote in transcript:
+                    start = transcript.index(quote)
+                    with st.expander("View transcript evidence"):
+                        before = transcript[max(0, start - 120):start]
+                        end = start + len(quote)
+                        after = transcript[end:end + 120]
+                        st.html(f"<p>{escape(before)}<mark>{escape(quote)}</mark>{escape(after)}</p>")
+                else:
+                    st.caption("No exact transcript excerpt available.")
+                with st.expander("Edit action item"):
+                    with st.form(f"{report_id}_action_{index}"):
+                        task = st.text_input("Task", item.task, key=f"{report_id}_{index}_task")
+                        owner = st.text_input("Owner", item.owner, key=f"{report_id}_{index}_owner")
+                        deadline = st.text_input("Deadline", item.deadline, key=f"{report_id}_{index}_deadline")
+                        st.caption("Saving a correction rewrites follow-up drafts for the affected owners.")
+                        if st.form_submit_button("Save correction"):
+                            try:
+                                affected = correct_action(notes, drafts, index, task, owner, deadline)
+                            except ValueError as error:
+                                st.error(str(error))
+                            else:
+                                for name in affected:
+                                    state[f"{report_id}_rev_{name}"] = uuid4().hex
+                                st.success("Action item saved.")
+                header.html(
                     f'<p class="task-name">{escape(item.task)}</p><div class="task-meta">'
                     f'<span>Owner · {escape(item.owner)}</span><span>Due · {escape(item.deadline)}</span>'
                     f'<span>Priority · {escape(item.priority)}</span></div>'
@@ -62,7 +88,8 @@ def render_report(report, report_id):
         for idx, email in enumerate(drafts.emails):
             with st.container(border=True):
                 st.text(f"To {email.owner}")
-                prefix = f"{report_id}_{idx}"
+                revision = state.get(f"{report_id}_rev_{email.owner}", "initial")
+                prefix = f"{report_id}_{email.owner}_{revision}_{idx}"
                 email.subject = st.text_input("Subject", email.subject, key=prefix + "_subject")
                 email.body = st.text_area("Message", email.body, height=160, key=prefix + "_body")
     with review:
@@ -123,7 +150,7 @@ def workspace():
     if "report" in state:
         if state.report_input == (transcript.strip(), state.meeting_type):
             st.header("Meeting recap")
-            render_report(state.report, state.report_id)
+            render_report(state.report, state.report_id, state.report_input[0])
         else:
             st.info("The meeting input has changed. Create a recap for this version.")
 

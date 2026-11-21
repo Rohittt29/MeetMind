@@ -10,7 +10,7 @@ def client_preview():
 
     return (
         Notes(summary="The client accepted a first PDF export containing data tables. Custom charts are outside the first release. Pricing approval is still with legal.",
-              action_items=[Action(task="Deliver the basic PDF export with data tables.", owner="John", deadline="Friday", priority="Unspecified")],
+              action_items=[Action(task="Deliver the basic PDF export with data tables.", source_quote="Mark: Great, John will handle the basic PDF export by Friday.", owner="John", deadline="Friday", priority="Unspecified")],
               conflicts=["When will legal finish reviewing the new pricing tier?"]),
         Drafts(emails=[Email(owner="John", subject="PDF export for Friday",
                              body="Hi John,\n\nPlease deliver the basic PDF export with data tables by Friday. Sarah confirmed the first version can ship without custom charts.\n\nThanks!")]),
