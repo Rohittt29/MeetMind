@@ -12,6 +12,7 @@ class Action(BaseModel):
     task: Text
     owner: Text
     deadline: Text
+    source_quote: str = ""
     priority: Literal["High", "Medium", "Low", "Unspecified"]
 
 
@@ -57,10 +58,14 @@ def analyze(transcript, meeting_type, api_key, model, progress):
         notes = request(
             "Extracting decisions and commitments",
             f"Summarize this {meeting_type}. Extract explicit commitments and open questions. "
+            "Copy one exact, contiguous transcript excerpt supporting each action into source_quote. "
             "Use Unassigned for unknown owners and Unspecified for unstated deadlines or priority. "
             "Use empty lists when there are no commitments or questions.",
             transcript, Notes,
         )
+        for action in notes.action_items:
+            if action.source_quote not in transcript:
+                action.source_quote = ""
         assigned = [item.model_dump_json() for item in notes.action_items if item.owner != "Unassigned"]
         drafts = Drafts(emails=[])
         if assigned:
@@ -76,6 +81,29 @@ def analyze(transcript, meeting_type, api_key, model, progress):
             transcript, Quality,
         )
     return notes, drafts, quality
+
+
+def correct_action(notes, drafts, index, task, owner, deadline):
+    item = notes.action_items[index]
+    task = task.strip()
+    owner = owner.strip() or "Unassigned"
+    deadline = deadline.strip() or "Unspecified"
+    if not task:
+        raise ValueError("Enter a task before saving.")
+    if (task, owner, deadline) == (item.task, item.owner, item.deadline):
+        return set()
+
+    affected = {item.owner, owner}
+    item.task, item.owner, item.deadline = task, owner, deadline
+    retained = [email for email in drafts.emails if email.owner not in affected]
+    for name in sorted(affected - {"Unassigned"}):
+        assignments = [a for a in notes.action_items if a.owner == name]
+        if assignments:
+            lines = [f"- {a.task} (Due: {a.deadline})" for a in assignments]
+            retained.append(Email(owner=name, subject="Meeting follow-up",
+                                  body=f"Hi {name},\n\nYour action items from the meeting:\n" + "\n".join(lines)))
+    drafts.emails = retained
+    return affected
 
 
 def markdown_report(notes, drafts, quality):
