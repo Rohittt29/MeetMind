@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 from google.genai.errors import APIError
 from pydantic import ValidationError
 
-from analysis import correct_action, analyze, markdown_report
+from analysis import correct_action, extract_notes, markdown_report
+from recovery import Recovery
 from samples import SAMPLES, client_preview
 
 load_dotenv()
@@ -37,7 +38,26 @@ def preview_sample():
     render_report(state.example_report, "example", SAMPLES["Client Call"])
 
 
-def render_report(report, report_id, transcript):
+@st.fragment(run_every=1)
+def poll_sections(recovery):
+    if recovery.collect():
+        st.rerun()
+
+
+def section_status(recovery, section):
+    if recovery is None:
+        return
+    if section in recovery.jobs:
+        st.caption("Generating this section… Your action items are ready to review and download.")
+    elif section in recovery.failed:
+        st.warning("This section could not be generated. Your completed work is available.")
+        label = "Retry follow-up emails" if section == "emails" else "Retry meeting quality"
+        if st.button(label):
+            recovery.start(section, os.getenv("GEMINI_API_KEY"), os.getenv("GEMINI_MODEL", "gemini-flash-latest"))
+            st.rerun()
+
+
+def render_report(report, report_id, transcript, recovery=None):
     notes, drafts, quality = report
     st.text(notes.summary)
     actions, followups, review = st.tabs(["Action items", "Follow-up emails", "Meeting quality"])
@@ -67,6 +87,8 @@ def render_report(report, report_id, transcript):
                             except ValueError as error:
                                 st.error(str(error))
                             else:
+                                if recovery is not None:
+                                    recovery.corrected_owners.update(affected)
                                 for name in affected:
                                     state[f"{report_id}_rev_{name}"] = uuid4().hex
                                 st.success("Action item saved.")
@@ -83,7 +105,8 @@ def render_report(report, report_id, transcript):
         if not notes.conflicts:
             st.caption("No open questions identified.")
     with followups:
-        if not drafts.emails:
+        section_status(recovery, "emails")
+        if not drafts.emails and (recovery is None or "emails" not in recovery.missing):
             st.caption("No owner-specific follow-ups to draft.")
         for idx, email in enumerate(drafts.emails):
             with st.container(border=True):
@@ -93,12 +116,14 @@ def render_report(report, report_id, transcript):
                 email.subject = st.text_input("Subject", email.subject, key=prefix + "_subject")
                 email.body = st.text_area("Message", email.body, height=160, key=prefix + "_body")
     with review:
-        st.metric("Overall meeting quality", f"{quality.overall:g} / 10")
-        st.text(quality.verdict)
-        for label in ("clarity", "decisiveness", "accountability"):
-            value = getattr(quality, label)
-            st.progress(value / 10, text=f"{label.title()}  ·  {value:g}/10")
-    st.download_button("Download recap (.md)", markdown_report(notes, drafts, quality),
+        section_status(recovery, "quality")
+        if quality is not None:
+            st.metric("Overall meeting quality", f"{quality.overall:g} / 10")
+            st.text(quality.verdict)
+            for label in ("clarity", "decisiveness", "accountability"):
+                value = getattr(quality, label)
+                st.progress(value / 10, text=f"{label.title()}  ·  {value:g}/10")
+    st.download_button("Download recap (.md)", markdown_report(notes, drafts, quality, missing=recovery.missing if recovery else ()),
                        file_name="meetmind-recap.md", mime="text/markdown", key=f"download_{report_id}", on_click="ignore")
 
 
@@ -134,7 +159,8 @@ def workspace():
         else:
             with st.status("Creating recap…") as status:
                 try:
-                    result = analyze(transcript, state.meeting_type, key, os.getenv("GEMINI_MODEL", "gemini-flash-latest"), status.write)
+                    model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+                    notes = extract_notes(transcript, state.meeting_type, key, model)
                 except (APIError, httpx.HTTPError, ValidationError) as error:
                     status.update(label="Couldn’t create this recap", state="error")
                     code = getattr(error, "code", None)
@@ -145,12 +171,22 @@ def workspace():
                     else:
                         st.error("The response was incomplete or the service was unavailable. Try again.")
                 else:
-                    save_result(result)
-                    status.update(label="Recap ready", state="complete", expanded=False)
+                    recovery = Recovery(notes, transcript)
+                    save_result((notes, recovery.drafts, None))
+                    state.recovery = recovery
+                    for section in ("emails", "quality"):
+                        recovery.start(section, key, model)
+                    status.update(label="Action items ready", state="complete", expanded=False)
     if "report" in state:
         if state.report_input == (transcript.strip(), state.meeting_type):
             st.header("Meeting recap")
-            render_report(state.report, state.report_id, state.report_input[0])
+            recovery = state.get("recovery")
+            if recovery is not None:
+                recovery.collect()
+                state.report = (recovery.notes, recovery.drafts, recovery.quality)
+            render_report(state.report, state.report_id, state.report_input[0], recovery)
+            if recovery is not None and recovery.jobs:
+                poll_sections(recovery)
         else:
             st.info("The meeting input has changed. Create a recap for this version.")
 
