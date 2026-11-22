@@ -6,7 +6,7 @@ SAMPLES = {
 
 # Authored preview for the client-call sample. Live analyses always use Gemini.
 def client_preview():
-    from analysis import Action, Drafts, Email, Notes, Quality
+    from meeting_analysis import Action, Drafts, Email, Notes, Quality
 
     return (
         Notes(summary="The client accepted a first PDF export containing data tables. Custom charts are outside the first release. Pricing approval is still with legal.",

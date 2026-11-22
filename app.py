@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 from google.genai.errors import APIError
 from pydantic import ValidationError
 
-from analysis import correct_action, extract_notes, markdown_report
-from recovery import Recovery
+from meeting_analysis import correct_action, extract_notes, markdown_report
+from recap_recovery import Recovery
 from samples import SAMPLES, client_preview
 
 load_dotenv()

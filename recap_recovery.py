@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 
-from analysis import Drafts, draft_emails, score_meeting
+from meeting_analysis import Drafts, draft_emails, score_meeting
 
 
 class Recovery:
