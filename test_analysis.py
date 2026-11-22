@@ -4,13 +4,13 @@ from unittest.mock import patch
 
 from pydantic import ValidationError
 
-from analysis import Email, analyze, correct_action, markdown_report
+from meeting_analysis import Email, analyze, correct_action, markdown_report
 from samples import client_preview
 
 
 class AnalysisTests(unittest.TestCase):
     def run_pipeline(self, responses):
-        with patch("analysis.genai.Client") as client:
+        with patch("meeting_analysis.genai.Client") as client:
             generate = client.return_value.__enter__.return_value.models.generate_content
             generate.side_effect = responses
             result = analyze("Test meeting", "Client Call", "test", "test", lambda label: None)
