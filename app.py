@@ -164,12 +164,18 @@ def workspace():
                 except (APIError, httpx.HTTPError, ValidationError) as error:
                     status.update(label="Couldn’t create this recap", state="error")
                     code = getattr(error, "code", None)
-                    if code == 429:
+                    if isinstance(error, ValidationError):
+                        st.error("Gemini returned a response in an unexpected format. Try again.")
+                    elif isinstance(error, httpx.TimeoutException):
+                        st.error("The Gemini request timed out. Try again.")
+                    elif isinstance(error, httpx.HTTPError):
+                        st.error("MeetMind could not connect to Gemini. Try again.")
+                    elif code == 429:
                         st.error("Gemini’s quota or rate limit was reached. Check the quota and try again later.")
                     elif code in (400, 401, 403, 404):
-                        st.error("Gemini rejected the request. Check the configured model, API key, and transcript length.")
+                        st.error(f"Gemini rejected the request (HTTP {code}). Check the model and API key.")
                     else:
-                        st.error("The response was incomplete or the service was unavailable. Try again.")
+                        st.error(f"Gemini could not complete the request (HTTP {code or 'unknown'}). Try again.")
                 else:
                     recovery = Recovery(notes, transcript)
                     save_result((notes, recovery.drafts, None))
